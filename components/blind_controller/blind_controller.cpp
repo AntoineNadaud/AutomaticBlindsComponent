@@ -1,5 +1,6 @@
 #include "blind_controller.h"
 #include "esphome/core/log.h"
+#include "esphome/core/hal.h"
 
 namespace esphome {
 namespace blind_controller {
@@ -8,30 +9,61 @@ static const char *TAG = "blind_controller";
 
 void BlindControllerComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Blind Controller...");
+  
+  // Schedule the initialization of the sensor
+  this->set_timeout("init_sensor", this->sensor_init_delay_, [this]() {
+    this->initialize_homing_sensor();
+  });
+}
 
-  if (this->auto_assign_address_) {
-    uint8_t data;
-    // Try to read register 3 to see if device exists at configured address
-    if (this->read_bytes(3, &data, 1) != i2c::ERROR_OK) {
-      ESP_LOGW(TAG, "Device not found at configured address 0x%02X. Attempting to assign from default address 0x09...", this->address_);
-      
-      uint8_t target_addr = this->address_;
-      this->set_i2c_address(0x09);
-      
-      // Check if ANY device is at 0x09
-      if (this->read_bytes(3, &data, 1) == i2c::ERROR_OK) {
-        ESP_LOGI(TAG, "Device found at default address 0x09. Changing its address to 0x%02X...", target_addr);
-        uint8_t payload[4] = {0, 0, 0, target_addr};
-        this->write_bytes(0, payload, 4);
-        ESP_LOGI(TAG, "Address change sent. The device will reboot.");
-      } else {
-        ESP_LOGE(TAG, "No device found at default address 0x09 either.");
-      }
-      
-      // Restore original address
-      this->set_i2c_address(target_addr);
-    }
+void BlindControllerComponent::initialize_homing_sensor() {
+  ESP_LOGI(TAG, "Initializing VL53L0X Homing Sensor...");
+
+  // 1. Turn on the sensor via the CH32V003 (set bit 1 of register 0)
+  uint8_t cmd[1];
+  if (this->read_bytes(0, cmd, 1) == i2c::ERROR_OK) {
+    cmd[0] |= 0x02; // Bit 1 = Sensor ON
+    this->write_bytes(0, cmd, 1);
+  } else {
+    ESP_LOGE(TAG, "Failed to communicate with blind controller to enable sensor.");
+    return;
   }
+
+  // Allow time for the VL53L0X to power up
+  delay(15); 
+  
+  uint8_t original_addr = this->address_;
+
+  // 2. Change the VL53L0X I2C address
+  // The VL53L0X defaults to 0x29 upon power-up
+  this->set_i2c_address(0x29);
+  
+  // 0x8A is the I2C_SLAVE_DEVICE_ADDRESS register on VL53L0X
+  if (this->sensor_address_ != 0x29) {
+    this->write_byte(0x8A, this->sensor_address_ & 0x7F);
+  }
+
+  // 3. Target the new sensor address for configuration
+  this->set_i2c_address(this->sensor_address_);
+
+  // Configure GPIO Interrupt Threshold
+  // System Interrupt Config GPIO (0x0A) -> 0x01 (Level Low, trigger when < threshold)
+  this->write_byte(0x0A, 0x01);
+
+  // Set Low Threshold in mm (0x32, 0x33)
+  this->write_byte(0x32, (this->trigger_distance_ >> 8) & 0xFF);
+  this->write_byte(0x33, this->trigger_distance_ & 0xFF);
+
+  // Clear any existing interrupt mask (0x0B)
+  this->write_byte(0x0B, 0x01);
+
+  // Start continuous ranging (SYSRANGE_START 0x00 -> 0x02)
+  this->write_byte(0x00, 0x02);
+
+  // Restore the component's I2C address back to the CH32V003 motor controller
+  this->set_i2c_address(original_addr);
+
+  ESP_LOGI(TAG, "VL53L0X initialized on address 0x%02X with %umm threshold.", this->sensor_address_, this->trigger_distance_);
 }
 
 void BlindControllerComponent::loop() {
@@ -81,13 +113,10 @@ void BlindControllerComponent::control(const cover::CoverCall &call) {
   }
 }
 
-void BlindControllerComponent::set_speed(uint8_t speed) {
-  this->speed_ = speed;
-}
-
-void BlindControllerComponent::set_auto_assign_address(bool auto_assign) {
-  this->auto_assign_address_ = auto_assign;
-}
+void BlindControllerComponent::set_speed(uint8_t speed) { this->speed_ = speed; }
+void BlindControllerComponent::set_sensor_address(uint8_t address) { this->sensor_address_ = address; }
+void BlindControllerComponent::set_trigger_distance(uint16_t distance) { this->trigger_distance_ = distance; }
+void BlindControllerComponent::set_sensor_init_delay(uint32_t delay) { this->sensor_init_delay_ = delay; }
 
 }  // namespace blind_controller
 }  // namespace esphome

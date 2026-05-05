@@ -11,7 +11,9 @@ BlindControllerComponent = blind_controller_ns.class_('BlindControllerComponent'
 CONFIG_SCHEMA = cover._COVER_SCHEMA.extend({
     cv.GenerateID(): cv.declare_id(BlindControllerComponent),
     cv.Optional("speed", default=50): cv.int_range(min=0, max=63),
-    cv.Optional("auto_assign_address", default=True): cv.boolean,
+    cv.Optional("sensor_address", default=0x29): cv.int_,
+    cv.Optional("trigger_distance", default=100): cv.int_,
+    cv.Optional("sensor_init_delay", default="5000ms"): cv.positive_time_period_milliseconds,
 }).extend(cv.COMPONENT_SCHEMA).extend(i2c.i2c_device_schema(0x09))
 
 async def to_code(config):
@@ -21,4 +23,6 @@ async def to_code(config):
     await cover.register_cover(var, config)
     
     cg.add(var.set_speed(config["speed"]))
-    cg.add(var.set_auto_assign_address(config["auto_assign_address"]))
+    cg.add(var.set_sensor_address(config["sensor_address"]))
+    cg.add(var.set_trigger_distance(config["trigger_distance"]))
+    cg.add(var.set_sensor_init_delay(config["sensor_init_delay"]))
