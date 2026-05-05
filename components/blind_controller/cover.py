@@ -8,7 +8,7 @@ DEPENDENCIES = ['i2c']
 blind_controller_ns = cg.esphome_ns.namespace('blind_controller')
 BlindControllerComponent = blind_controller_ns.class_('BlindControllerComponent', cover.Cover, cg.Component, i2c.I2CDevice)
 
-CONFIG_SCHEMA = cover.COVER_SCHEMA.extend({
+CONFIG_SCHEMA = cover._COVER_SCHEMA.extend({
     cv.GenerateID(): cv.declare_id(BlindControllerComponent),
     cv.Optional("speed", default=50): cv.int_range(min=0, max=63),
 }).extend(cv.COMPONENT_SCHEMA).extend(i2c.i2c_device_schema(0x09))
