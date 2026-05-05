@@ -2,7 +2,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/components/cover/cover.h"
-#include "esphome/components/i2c/i2c_device.h"
+#include "esphome/components/i2c/i2c.h"
 
 namespace esphome {
 namespace blind_controller {
