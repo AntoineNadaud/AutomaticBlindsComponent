@@ -8,6 +8,30 @@ static const char *TAG = "blind_controller";
 
 void BlindControllerComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Blind Controller...");
+
+  if (this->auto_assign_address_) {
+    uint8_t data;
+    // Try to read register 3 to see if device exists at configured address
+    if (this->read_bytes(3, &data, 1) != i2c::ERROR_OK) {
+      ESP_LOGW(TAG, "Device not found at configured address 0x%02X. Attempting to assign from default address 0x09...", this->address_);
+      
+      uint8_t target_addr = this->address_;
+      this->set_i2c_address(0x09);
+      
+      // Check if ANY device is at 0x09
+      if (this->read_bytes(3, &data, 1) == i2c::ERROR_OK) {
+        ESP_LOGI(TAG, "Device found at default address 0x09. Changing its address to 0x%02X...", target_addr);
+        uint8_t payload[4] = {0, 0, 0, target_addr};
+        this->write_bytes(0, payload, 4);
+        ESP_LOGI(TAG, "Address change sent. The device will reboot.");
+      } else {
+        ESP_LOGE(TAG, "No device found at default address 0x09 either.");
+      }
+      
+      // Restore original address
+      this->set_i2c_address(target_addr);
+    }
+  }
 }
 
 void BlindControllerComponent::loop() {
@@ -59,6 +83,10 @@ void BlindControllerComponent::control(const cover::CoverCall &call) {
 
 void BlindControllerComponent::set_speed(uint8_t speed) {
   this->speed_ = speed;
+}
+
+void BlindControllerComponent::set_auto_assign_address(bool auto_assign) {
+  this->auto_assign_address_ = auto_assign;
 }
 
 }  // namespace blind_controller

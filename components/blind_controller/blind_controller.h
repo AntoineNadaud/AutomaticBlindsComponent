@@ -15,12 +15,14 @@ class BlindControllerComponent : public cover::Cover, public Component, public i
 
   cover::CoverTraits get_traits() override;
   void set_speed(uint8_t speed);
+  void set_auto_assign_address(bool auto_assign);
 
  protected:
   void control(const cover::CoverCall &call) override;
 
  private:
   uint8_t speed_{30};
+  bool auto_assign_address_{true};
 };
 
 }  // namespace blind_controller

@@ -11,6 +11,7 @@ BlindControllerComponent = blind_controller_ns.class_('BlindControllerComponent'
 CONFIG_SCHEMA = cover._COVER_SCHEMA.extend({
     cv.GenerateID(): cv.declare_id(BlindControllerComponent),
     cv.Optional("speed", default=50): cv.int_range(min=0, max=63),
+    cv.Optional("auto_assign_address", default=True): cv.boolean,
 }).extend(cv.COMPONENT_SCHEMA).extend(i2c.i2c_device_schema(0x09))
 
 async def to_code(config):
@@ -20,3 +21,4 @@ async def to_code(config):
     await cover.register_cover(var, config)
     
     cg.add(var.set_speed(config["speed"]))
+    cg.add(var.set_auto_assign_address(config["auto_assign_address"]))
